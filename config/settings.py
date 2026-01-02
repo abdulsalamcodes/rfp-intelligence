@@ -67,10 +67,36 @@ class Settings(BaseSettings):
     # API Configuration
     api_host: str = Field(default="0.0.0.0", description="API host")
     api_port: int = Field(default=8000, description="API port")
+    api_env: str = Field(default="development", description="API environment")
     cors_origins: str = Field(
         default="http://localhost:8501,http://localhost:3000",
         description="CORS origins (comma-separated)"
     )
+    
+    # Database Configuration (Neon PostgreSQL)
+    database_url: str = Field(
+        default="postgresql+asyncpg://localhost/rfp_intelligence",
+        description="Database connection URL"
+    )
+    database_echo: bool = Field(
+        default=False,
+        description="Echo SQL queries for debugging"
+    )
+    
+    # Redis Configuration (Job Queue)
+    redis_url: str = Field(
+        default="redis://localhost:6379",
+        description="Redis connection URL"
+    )
+    
+    # JWT Configuration
+    jwt_secret: str = Field(
+        default="change-this-in-production-use-long-random-string",
+        description="JWT signing secret"
+    )
+    jwt_algorithm: str = Field(default="HS256", description="JWT algorithm")
+    jwt_expire_minutes: int = Field(default=30, description="Access token expiry")
+    jwt_refresh_expire_days: int = Field(default=7, description="Refresh token expiry")
     
     @property
     def cors_origins_list(self) -> list[str]:

@@ -39,6 +39,38 @@ def get_results(rfp_id):
     return None
 
 
+
+def regenerate_proposal(rfp_id: str):
+    """Trigger the proposal drafting agent to regenerate the proposal."""
+    try:
+        response = httpx.post(
+            f"{API_BASE}/api/agents/proposal",
+            json={"rfp_id": rfp_id, "agent_name": "proposal"},
+            timeout=120  # Longer timeout for LLM processing
+        )
+        if response.status_code == 200:
+            return response.json(), None
+        else:
+            return None, response.text
+    except Exception as e:
+        return None, str(e)
+
+
+def revise_proposal_with_ai(rfp_id: str):
+    """Revise the proposal using AI based on review feedback."""
+    try:
+        response = httpx.post(
+            f"{API_BASE}/api/proposal/{rfp_id}/revise",
+            timeout=180  # Longer timeout as this involves reading + writing
+        )
+        if response.status_code == 200:
+            return response.json(), None
+        else:
+            return None, response.text
+    except Exception as e:
+        return None, str(e)
+
+
 def main():
     st.title("📄 Proposal Editor")
     st.markdown("Review and edit AI-generated proposal sections.")
@@ -220,16 +252,69 @@ def main():
     
     # Navigation and actions
     st.markdown("---")
+    
+    # First row: AI-powered actions
+    st.markdown("### 🤖 AI Actions")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Check if review exists for enabling the revise button
+        has_review = bool(review.get("review_items"))
+        if st.button(
+            "✨ Revise with AI", 
+            use_container_width=True, 
+            type="primary",
+            disabled=not has_review,
+            help="Let AI revise the proposal based on review feedback" if has_review else "Review feedback required for AI revision"
+        ):
+            with st.spinner("AI is revising the proposal based on review feedback... This may take 1-2 minutes."):
+                result, error = revise_proposal_with_ai(rfp_id)
+            if error:
+                st.error(f"❌ Failed to revise: {error}")
+            else:
+                st.success("✅ Proposal revised successfully!")
+                if result.get("revision_summary"):
+                    st.info(f"**Revision Summary:** {result['revision_summary']}")
+                st.rerun()
+    
+    with col2:
+        if st.button("🔄 Re-generate from Scratch", use_container_width=True):
+            with st.spinner("Regenerating proposal... This may take a minute."):
+                result, error = regenerate_proposal(rfp_id)
+            if error:
+                st.error(f"❌ Failed to regenerate: {error}")
+            else:
+                st.success("✅ Proposal regenerated successfully!")
+                st.rerun()
+    
+    st.caption("💡 **Revise with AI** improves the existing proposal using review feedback. **Re-generate** creates a completely new proposal.")
+    
+    # Second row: Navigation and manual actions
+    st.markdown("---")
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         if st.button("✅ Compliance", use_container_width=True):
             st.switch_page("pages/3_compliance.py")
     with col2:
-        if st.button("🔄 Re-generate", use_container_width=True):
-            st.info("Re-generation would trigger the drafting agent again.")
+        if st.button("🔍 Re-run Review", use_container_width=True):
+            # Trigger review agent to re-review the current proposal
+            try:
+                with st.spinner("Re-running review..."):
+                    response = httpx.post(
+                        f"{API_BASE}/api/agents/review",
+                        json={"rfp_id": rfp_id, "agent_name": "review"},
+                        timeout=120
+                    )
+                if response.status_code == 200:
+                    st.success("✅ Review updated!")
+                    st.rerun()
+                else:
+                    st.error(f"Failed to re-run review: {response.text}")
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
     with col3:
-        if st.button("💾 Save All Edits", use_container_width=True, type="primary"):
+        if st.button("💾 Save All Edits", use_container_width=True):
             st.success("✅ All edits saved!")
     with col4:
         if st.button("📦 Export", use_container_width=True):

@@ -13,7 +13,8 @@ from services.document_processor import (
 )
 from services.storage import (
     StorageService,
-    get_storage
+    get_storage,
+    is_using_database
 )
 
 __all__ = [
@@ -24,4 +25,5 @@ __all__ = [
     "OCR_AVAILABLE",
     "StorageService",
     "get_storage",
+    "is_using_database",
 ]

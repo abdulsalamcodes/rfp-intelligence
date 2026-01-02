@@ -18,7 +18,8 @@ from agents.compliance_agent import (
 from agents.technical_drafting_agent import (
     create_technical_drafting_agent,
     create_technical_drafting_task,
-    draft_technical_proposal
+    draft_technical_proposal,
+    revise_proposal_with_feedback
 )
 from agents.experience_matching_agent import (
     create_experience_matching_agent,
@@ -48,6 +49,7 @@ __all__ = [
     "create_technical_drafting_agent",
     "create_technical_drafting_task",
     "draft_technical_proposal",
+    "revise_proposal_with_feedback",
     # Experience Matching
     "create_experience_matching_agent",
     "create_experience_matching_task",

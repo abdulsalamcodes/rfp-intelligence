@@ -36,3 +36,22 @@ pytest-asyncio>=0.23.0
 
 # Utilities
 uuid6>=2024.1.12
+
+# Database (Neon PostgreSQL)
+sqlalchemy[asyncio]>=2.0.0
+asyncpg>=0.29.0
+psycopg2-binary>=2.9.9
+alembic>=1.13.0
+greenlet>=3.0.0
+
+# Authentication
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# Job Queue (Redis)
+arq>=0.26.0
+redis>=5.0.0
+
+# API Utilities
+slowapi>=0.1.9
+nest_asyncio>=1.6.0

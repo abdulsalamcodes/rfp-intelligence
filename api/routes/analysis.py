@@ -415,3 +415,64 @@ async def run_single_agent(agent_name: str, request: AgentRequest):
     except Exception as e:
         logger.error(f"Agent {agent_name} failed for RFP {request.rfp_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/proposal/{rfp_id}/revise")
+async def revise_proposal_with_review(rfp_id: str):
+    """
+    Revise the proposal based on review feedback.
+    
+    Takes the existing proposal and review feedback, then uses AI to
+    generate an improved version that addresses the identified issues.
+    This gives users an alternative to manually editing the proposal.
+    """
+    storage = get_storage()
+    
+    # Verify RFP exists
+    metadata = storage.get_rfp_metadata(rfp_id)
+    if not metadata:
+        raise HTTPException(status_code=404, detail="RFP not found")
+    
+    # Get required inputs
+    analysis = storage.get_agent_output(rfp_id, "analysis")
+    proposal = storage.get_agent_output(rfp_id, "proposal")
+    review = storage.get_agent_output(rfp_id, "review")
+    
+    if not analysis:
+        raise HTTPException(status_code=400, detail="Analysis not found. Run full analysis first.")
+    
+    if not proposal:
+        raise HTTPException(status_code=400, detail="Proposal not found. Run proposal drafting first.")
+    
+    if not review:
+        raise HTTPException(status_code=400, detail="Review not found. Run review agent first.")
+    
+    try:
+        from agents import revise_proposal_with_feedback
+        
+        logger.info(f"Starting proposal revision for RFP: {rfp_id}")
+        
+        # Revise the proposal based on review feedback
+        revised_proposal = revise_proposal_with_feedback(
+            original_proposal=proposal,
+            review_feedback=review,
+            analysis_result=analysis
+        )
+        
+        # Save the revised proposal (overwrites the original)
+        storage.save_agent_output(rfp_id, "proposal", revised_proposal)
+        
+        logger.info(f"Proposal revision completed for RFP: {rfp_id}")
+        
+        return {
+            "status": "success",
+            "rfp_id": rfp_id,
+            "message": "Proposal revised based on review feedback",
+            "revision_summary": revised_proposal.get("revision_summary", "No summary available"),
+            "result": revised_proposal
+        }
+        
+    except Exception as e:
+        logger.error(f"Proposal revision failed for RFP {rfp_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
