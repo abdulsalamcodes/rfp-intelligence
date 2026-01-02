@@ -1,0 +1,369 @@
+{
+    "name": "Proposal Generation Workflow",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "proposal-generate",
+                "responseMode": "onReceived",
+                "options": {}
+            },
+            "id": "webhook-trigger",
+            "name": "Generate Proposal Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1.1,
+            "position": [
+                250,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "GET",
+                "url": "={{$env.API_BASE_URL}}/api/results/{{ $json.rfp_id }}",
+                "options": {}
+            },
+            "id": "get-analysis",
+            "name": "Get Analysis Results",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                470,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict"
+                    },
+                    "conditions": [
+                        {
+                            "id": "check-analysis",
+                            "leftValue": "={{ $json.outputs.analysis }}",
+                            "rightValue": "",
+                            "operator": {
+                                "type": "object",
+                                "operation": "exists"
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "id": "has-analysis",
+            "name": "Analysis Complete?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                690,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{$env.API_BASE_URL}}/api/agents/compliance",
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"rfp_id\": \"{{ $json.metadata.rfp_id }}\",\n  \"agent_name\": \"compliance\"\n}"
+            },
+            "id": "run-compliance",
+            "name": "Run Compliance Agent",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                910,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{$env.API_BASE_URL}}/api/agents/experience",
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"rfp_id\": \"{{ $json.metadata.rfp_id }}\",\n  \"agent_name\": \"experience\"\n}"
+            },
+            "id": "run-experience",
+            "name": "Run Experience Agent",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                910,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "mode": "wait",
+                "resume": "webhook",
+                "options": {}
+            },
+            "id": "wait-approval",
+            "name": "Wait for Approval",
+            "type": "n8n-nodes-base.wait",
+            "typeVersion": 1.1,
+            "position": [
+                1130,
+                300
+            ],
+            "webhookId": "approval-gate"
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "conditions": [
+                        {
+                            "id": "check-approved",
+                            "leftValue": "={{ $json.approved }}",
+                            "rightValue": true,
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "equals"
+                            }
+                        }
+                    ]
+                }
+            },
+            "id": "check-approval",
+            "name": "Approved?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                1350,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{$env.API_BASE_URL}}/api/agents/proposal",
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"rfp_id\": \"{{ $json.rfp_id }}\",\n  \"agent_name\": \"proposal\"\n}"
+            },
+            "id": "run-drafting",
+            "name": "Run Drafting Agent",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                1570,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{$env.API_BASE_URL}}/api/agents/review",
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"rfp_id\": \"{{ $json.rfp_id }}\",\n  \"agent_name\": \"review\"\n}"
+            },
+            "id": "run-review",
+            "name": "Run Review Agent",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                1790,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "values": {
+                    "string": [
+                        {
+                            "name": "status",
+                            "value": "rejected"
+                        },
+                        {
+                            "name": "message",
+                            "value": "Proposal generation was rejected. Please review and retry."
+                        }
+                    ]
+                }
+            },
+            "id": "set-rejected",
+            "name": "Set Rejected",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.3,
+            "position": [
+                1570,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "values": {
+                    "string": [
+                        {
+                            "name": "status",
+                            "value": "completed"
+                        },
+                        {
+                            "name": "message",
+                            "value": "Proposal generation completed successfully"
+                        }
+                    ]
+                }
+            },
+            "id": "set-complete",
+            "name": "Set Complete",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.3,
+            "position": [
+                2010,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "errorMessage": "Analysis not found for this RFP. Please run analysis first."
+            },
+            "id": "error-no-analysis",
+            "name": "Error: No Analysis",
+            "type": "n8n-nodes-base.stopAndError",
+            "typeVersion": 1,
+            "position": [
+                910,
+                500
+            ]
+        }
+    ],
+    "connections": {
+        "Generate Proposal Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Get Analysis Results",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Analysis Results": {
+            "main": [
+                [
+                    {
+                        "node": "Analysis Complete?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Analysis Complete?": {
+            "main": [
+                [
+                    {
+                        "node": "Run Compliance Agent",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Run Experience Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Error: No Analysis",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Run Compliance Agent": {
+            "main": [
+                [
+                    {
+                        "node": "Wait for Approval",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Run Experience Agent": {
+            "main": [
+                [
+                    {
+                        "node": "Wait for Approval",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Wait for Approval": {
+            "main": [
+                [
+                    {
+                        "node": "Approved?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Approved?": {
+            "main": [
+                [
+                    {
+                        "node": "Run Drafting Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Set Rejected",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Run Drafting Agent": {
+            "main": [
+                [
+                    {
+                        "node": "Run Review Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Run Review Agent": {
+            "main": [
+                [
+                    {
+                        "node": "Set Complete",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "meta": {
+        "templateId": "proposal-generation"
+    },
+    "tags": [
+        {
+            "name": "RFP Intelligence"
+        }
+    ]
+}

@@ -1,0 +1,228 @@
+{
+    "name": "Export Workflow",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "export-proposal",
+                "responseMode": "lastNode",
+                "options": {}
+            },
+            "id": "webhook-trigger",
+            "name": "Export Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1.1,
+            "position": [
+                250,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "GET",
+                "url": "={{$env.API_BASE_URL}}/api/results/{{ $json.rfp_id }}",
+                "options": {}
+            },
+            "id": "get-all-data",
+            "name": "Get All Data",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                470,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Generate compliance matrix CSV\nconst compliance = $input.item.json.outputs.compliance;\nconst matrix = compliance?.compliance_matrix || [];\n\nlet csv = 'Requirement ID,Requirement,Mandatory,Status,Notes\\n';\n\nfor (const item of matrix) {\n  const row = [\n    item.requirement_id,\n    `\"${(item.requirement_text || '').replace(/\"/g, '\"\"')}\"`,\n    item.mandatory ? 'Yes' : 'No',\n    item.status,\n    `\"${(item.notes || '').replace(/\"/g, '\"\"')}\"`\n  ].join(',');\n  csv += row + '\\n';\n}\n\nreturn {\n  json: {\n    ...$input.item.json,\n    compliance_csv: csv\n  }\n};"
+            },
+            "id": "generate-compliance-csv",
+            "name": "Generate Compliance CSV",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                690,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Generate proposal document content\nconst proposal = $input.item.json.outputs.proposal;\nconst sections = proposal?.sections || [];\nconst review = $input.item.json.outputs.review;\n\nlet content = '# Technical Proposal\\n\\n';\ncontent += `Generated: ${new Date().toISOString()}\\n\\n`;\ncontent += '---\\n\\n';\n\nfor (const section of sections) {\n  content += `## ${section.title}\\n\\n`;\n  content += section.content + '\\n\\n';\n  \n  if (section.assumptions?.length) {\n    content += '### Assumptions\\n\\n';\n    for (const assumption of section.assumptions) {\n      content += `- ${assumption}\\n`;\n    }\n    content += '\\n';\n  }\n  \n  content += '---\\n\\n';\n}\n\nif (review) {\n  content += '## Quality Review Summary\\n\\n';\n  content += `Quality Score: ${(review.overall_quality_score * 100).toFixed(0)}%\\n\\n`;\n  content += `Recommendation: ${review.recommendation}\\n\\n`;\n  \n  if (review.priority_fixes?.length) {\n    content += '### Priority Fixes\\n\\n';\n    for (const fix of review.priority_fixes) {\n      content += `- ${fix}\\n`;\n    }\n  }\n}\n\nreturn {\n  json: {\n    ...$input.item.json,\n    proposal_markdown: content\n  }\n};"
+            },
+            "id": "generate-proposal-doc",
+            "name": "Generate Proposal Doc",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                690,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "toFile",
+                "fileContent": "={{ $json.compliance_csv }}",
+                "fileName": "={{ $json.metadata.rfp_id }}_compliance_matrix.csv",
+                "mimeType": "text/csv"
+            },
+            "id": "write-csv",
+            "name": "Write CSV File",
+            "type": "n8n-nodes-base.convertToFile",
+            "typeVersion": 1.1,
+            "position": [
+                910,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "toFile",
+                "fileContent": "={{ $json.proposal_markdown }}",
+                "fileName": "={{ $json.metadata.rfp_id }}_proposal.md",
+                "mimeType": "text/markdown"
+            },
+            "id": "write-md",
+            "name": "Write Markdown File",
+            "type": "n8n-nodes-base.convertToFile",
+            "typeVersion": 1.1,
+            "position": [
+                910,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "mode": "combine",
+                "combineBy": "combineAll",
+                "options": {}
+            },
+            "id": "merge-files",
+            "name": "Merge Files",
+            "type": "n8n-nodes-base.merge",
+            "typeVersion": 2.1,
+            "position": [
+                1130,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "values": {
+                    "string": [
+                        {
+                            "name": "status",
+                            "value": "success"
+                        },
+                        {
+                            "name": "message",
+                            "value": "Export completed. Files generated: compliance_matrix.csv, proposal.md"
+                        }
+                    ]
+                }
+            },
+            "id": "set-response",
+            "name": "Set Response",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.3,
+            "position": [
+                1350,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Export Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Get All Data",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get All Data": {
+            "main": [
+                [
+                    {
+                        "node": "Generate Compliance CSV",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Generate Proposal Doc",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Generate Compliance CSV": {
+            "main": [
+                [
+                    {
+                        "node": "Write CSV File",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Generate Proposal Doc": {
+            "main": [
+                [
+                    {
+                        "node": "Write Markdown File",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Write CSV File": {
+            "main": [
+                [
+                    {
+                        "node": "Merge Files",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Write Markdown File": {
+            "main": [
+                [
+                    {
+                        "node": "Merge Files",
+                        "type": "main",
+                        "index": 1
+                    }
+                ]
+            ]
+        },
+        "Merge Files": {
+            "main": [
+                [
+                    {
+                        "node": "Set Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "meta": {
+        "templateId": "export-workflow"
+    },
+    "tags": [
+        {
+            "name": "RFP Intelligence"
+        }
+    ]
+}

@@ -1,0 +1,34 @@
+# Virtual environment
+.venv/
+env/
+venv/
+
+# Compiled Python files
+*.pyc
+__pycache__/
+
+# Streamlit cache
+streamlit_app/.streamlit/
+
+# Data files
+.data/
+data/
+
+# Logs
+logs/
+data/logs/
+
+# Temporary files
+*.tmp
+*.temp
+
+# IDE and editor files
+.idea/
+.vscode/
+
+# API keys and secrets
+.env
+
+# Test files
+tests/
+
