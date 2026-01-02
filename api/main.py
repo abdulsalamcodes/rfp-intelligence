@@ -29,17 +29,6 @@ async def lifespan(app: FastAPI):
     logger.info(f"Environment: {settings.api_env}")
     logger.info(f"LLM Provider: {settings.llm_provider.value}")
     
-    # Startup: Seed default plans if using database
-    try:
-        from services.storage import is_using_database
-        if is_using_database():
-            from services.billing import seed_plans
-            plans = await seed_plans()
-            if plans:
-                logger.info(f"Seeded {len(plans)} default plans")
-    except Exception as e:
-        logger.warning(f"Could not seed plans: {e}")
-    
     yield
     
     # Shutdown: Close connections
