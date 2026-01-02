@@ -225,7 +225,7 @@ def main():
                         with col4:
                             if st.button("View", key=rfp["rfp_id"]):
                                 st.session_state["current_rfp_id"] = rfp["rfp_id"]
-                                st.switch_page("pages/2_requirements.py")
+                                st.switch_page("pages/0_details.py")
             else:
                 st.info("No RFPs uploaded yet.")
         else:
