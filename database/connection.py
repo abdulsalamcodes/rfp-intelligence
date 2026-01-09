@@ -4,8 +4,9 @@ Database Connection
 Async SQLAlchemy connection for Neon PostgreSQL.
 """
 
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator, Optional, Any, Dict
 from contextlib import asynccontextmanager
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 from sqlalchemy.ext.asyncio import (
     create_async_engine,
@@ -28,10 +29,46 @@ def get_engine() -> AsyncEngine:
     global _engine
     
     if _engine is None:
+        raw_url = settings.database_url
+        
+        # Parse the URL to handle schemes and query parameters
+        parsed = urlparse(raw_url)
+        params = parse_qs(parsed.query)
+        
+        # Determine if SSL is required
+        ssl_required = False
+        if "sslmode" in params:
+            if "require" in params["sslmode"] or "verify-full" in params["sslmode"]:
+                ssl_required = True
+            # Remove from params as asyncpg doesn't support it in URL
+            params.pop("sslmode", None)
+            
+        # Also remove channel_binding if present
+        params.pop("channel_binding", None)
+        
+        # Reconstruct query without incompatible params
+        new_query = urlencode(params, doseq=True)
+        
+        # Ensure correct scheme
+        scheme = parsed.scheme
+        if scheme in ["postgresql", "postgres"]:
+            scheme = "postgresql+asyncpg"
+        elif not scheme.endswith("+asyncpg"):
+            scheme = f"{scheme}+asyncpg"
+            
+        # Reconstruct the final URL
+        clean_url = urlunparse(parsed._replace(scheme=scheme, query=new_query))
+        
+        # Configure connect_args for SSL if needed
+        connect_args: Dict[str, Any] = {}
+        if ssl_required:
+            connect_args["ssl"] = True
+            
         _engine = create_async_engine(
-            settings.database_url,
+            clean_url,
             echo=settings.database_echo,
             poolclass=NullPool,  # Better for serverless
+            connect_args=connect_args
         )
     
     return _engine

@@ -123,6 +123,26 @@ def setup_error_handlers(app: FastAPI):
             }
         )
     
+    @app.exception_handler(ValueError)
+    async def value_error_handler(request: Request, exc: ValueError):
+        """Handle value errors (e.g. bcrypt length, validation)."""
+        logger.warning(f"Value Error: {str(exc)}")
+        
+        message = str(exc)
+        # Specific check for bcrypt length error
+        if "password cannot be longer than 72 bytes" in message:
+            message = "Password is too long (maximum 72 characters)"
+            
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": message
+                }
+            }
+        )
+
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
         """Handle unexpected exceptions."""

@@ -7,16 +7,16 @@ Usage:
     python scripts/seed_plans.py
 """
 
-import asyncio
 import sys
 from pathlib import Path
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import select
-from database.connection import get_db_context
-from database.models import Plan
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
+from config.settings import settings
+from database.models import Plan, Base
 
 
 DEFAULT_PLANS = [
@@ -67,28 +67,36 @@ DEFAULT_PLANS = [
 ]
 
 
-async def seed_plans():
-    """Seed default plans."""
-    async with get_db_context() as db:
+def seed_plans():
+    """Seed default plans using sync connection."""
+    # Convert async URL to sync URL
+    db_url = settings.database_url
+    sync_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
+    
+    print(f"Connecting to database...")
+    engine = create_engine(sync_url)
+    
+    with Session(engine) as db:
         for plan_data in DEFAULT_PLANS:
             # Check if plan exists
-            result = await db.execute(
+            result = db.execute(
                 select(Plan).where(Plan.name == plan_data["name"])
             )
             existing = result.scalar_one_or_none()
             
             if existing:
-                print(f"Plan '{plan_data['name']}' already exists, skipping")
+                print(f"  - Plan '{plan_data['name']}' already exists, skipping")
                 continue
             
             plan = Plan(**plan_data)
             db.add(plan)
-            print(f"Created plan: {plan_data['display_name']}")
+            print(f"  + Created plan: {plan_data['display_name']}")
         
-        await db.commit()
+        db.commit()
     
-    print("\n✅ Plans seeded successfully!")
+    print("\nPlans seeded successfully!")
 
 
 if __name__ == "__main__":
-    asyncio.run(seed_plans())
+    seed_plans()
+
